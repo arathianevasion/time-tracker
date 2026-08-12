@@ -201,7 +201,7 @@ export function WeeklyGrid({
               </td>
               <td className="py-1.5 text-right text-gray-600">{fmtHours(minutesForIssue(row.issueKey))}h</td>
               <td className="py-1.5 text-right text-gray-500">
-                {liveMinutes ? `${fmtHours((liveMinutes[row.issueKey] ?? 0) * 60)}h` : "–"}
+                {liveMinutes ? `${fmtHours(liveMinutes[row.issueKey] ?? 0)}h` : "–"}
               </td>
               <td className="py-1.5 text-right">
                 <button type="button" className="text-gray-400 hover:text-red-600" onClick={() => removeRow(row.id)}>
