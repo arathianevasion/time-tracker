@@ -1,0 +1,35 @@
+# Weekly Jira Time Tracker
+
+Local, single-user app that logs weekly time against Jira issues on `integritymarketing.atlassian.net` as real worklogs. See `docs/PRD.md` for the full spec and `reference/time-tracking-manager.html` for the prototype this replaces.
+
+## Setup
+
+1. `npm install`
+2. Copy `.env.example` to `.env.local` (already done if you're continuing this session) and fill in:
+   - `JIRA_BASE_URL` — `https://integritymarketing.atlassian.net`
+   - `JIRA_EMAIL` — your Atlassian account email
+   - `JIRA_API_TOKEN` — generate at https://id.atlassian.com/manage-profile/security/api-tokens (tokens expire after 1 year)
+3. `npm run verify-auth` — confirms the token works before you rely on anything else. Restart `npm run dev` after changing `.env.local` (Next only reads env files at process start).
+4. `npm run seed` — one-time, idempotent: loads the baseline and the already-logged Aug 3–7 2026 week from the prototype's data so this app doesn't re-create those worklogs. Safe to run again; it no-ops once the baseline is populated.
+5. `npm run dev` — open http://localhost:3000
+
+## Scripts
+
+- `npm run dev` / `build` / `start` — standard Next.js
+- `npm run verify-auth` — standalone Jira auth check (`scripts/verify-auth.ts`)
+- `npm run seed` — one-time migration from the prototype's data (`scripts/seed.ts`)
+- `npm test` — Vitest unit tests (allocation/rounding engine, date/holiday helpers)
+- `npm run lint` — ESLint
+
+## How it works
+
+- **Baseline**: a recurring split of your time across Jira issues, by percent, summing to 100.
+- **Each week** starts from the baseline; you can add/remove/edit percentages for that week only, or add **one-off** entries (a flat hour amount on a specific date) that carve hours out of the week before percentages are applied to what's left.
+- **Allocation**: percentages are applied to `workdays × 8h` (minus one-offs), rounded to the nearest quarter hour, then split evenly across the week's working days. See `src/lib/time/allocate.ts`.
+- **Sync**: "Log this week to Jira" writes one worklog per issue per day. Re-logging updates existing worklogs in place (tracked by a local worklog-ID ledger keyed on issue + date) instead of duplicating.
+- **Data lives locally only**: `data/time-tracker.db` (SQLite, gitignored). Nothing leaves your machine except calls to Jira itself.
+
+## Notes
+
+- Jira Cloud's REST API doesn't support browser CORS, so all Jira calls go through server-side Next.js route handlers — the API token never reaches the browser.
+- Issue search is scoped to the project keys configured in Settings (default: `PM`).
