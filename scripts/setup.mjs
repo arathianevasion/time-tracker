@@ -126,14 +126,53 @@ function checkNodeVersion() {
   }
 }
 
-function ensureDependencies() {
-  if (existsSync(path.join(ROOT, "node_modules", "better-sqlite3"))) return;
-  log("Installing app dependencies (this can take a minute the first time)...");
+function ensureDependencies(force = false) {
+  if (!force && existsSync(path.join(ROOT, "node_modules", "better-sqlite3"))) return;
+  log("Installing app dependencies (this can take a minute)...");
   const result = spawnSync("npm", ["install"], { cwd: ROOT, stdio: "inherit", shell: true });
   if (result.status !== 0) {
     log("\nSomething went wrong installing dependencies. Please contact Andy with the message above.");
     process.exit(1);
   }
+}
+
+/**
+ * Pulls the latest from origin/main if we're a git checkout (always true via the launcher, which
+ * clones before ever invoking this script). Uses --ff-only so it's a no-op rather than a clobber
+ * if something unexpected has diverged locally. Returns whether package.json/package-lock.json
+ * changed, so the caller knows whether to force a fresh `npm install`.
+ */
+function checkForUpdates() {
+  if (!existsSync(path.join(ROOT, ".git"))) return false;
+
+  log("Checking for updates...");
+  const before = spawnSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).stdout?.trim();
+
+  const fetch = spawnSync("git", ["fetch", "--quiet", "origin", "main"], { cwd: ROOT, stdio: "inherit" });
+  if (fetch.status !== 0) {
+    log("Couldn't check for updates (no internet?) — continuing with what you have.\n");
+    return false;
+  }
+
+  const behind = spawnSync("git", ["rev-list", "--count", "HEAD..origin/main"], { cwd: ROOT, encoding: "utf8" });
+  const behindCount = Number(behind.stdout?.trim() || "0");
+  if (!behindCount) {
+    log("Already up to date.\n");
+    return false;
+  }
+
+  log(`Found an update (${behindCount} change${behindCount === 1 ? "" : "s"}) — installing...`);
+  const pull = spawnSync("git", ["pull", "--quiet", "--ff-only", "origin", "main"], { cwd: ROOT, stdio: "inherit" });
+  if (pull.status !== 0) {
+    log("Couldn't apply the update automatically — continuing with the version you have.");
+    log("If this keeps happening, contact Andy.\n");
+    return false;
+  }
+
+  const after = spawnSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).stdout?.trim();
+  const changed = spawnSync("git", ["diff", "--name-only", before, after], { cwd: ROOT, encoding: "utf8" });
+  log("Updated.\n");
+  return /(^|\/)package(-lock)?\.json$/m.test(changed.stdout ?? "");
 }
 
 function readExistingCreds() {
@@ -252,7 +291,8 @@ async function main() {
   log("=======================================\n");
 
   checkNodeVersion();
-  ensureDependencies();
+  const depsMayHaveChanged = checkForUpdates();
+  ensureDependencies(depsMayHaveChanged);
 
   let creds = readExistingCreds();
   if (creds) {

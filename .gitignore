@@ -43,8 +43,11 @@ next-env.d.ts
 # local sqlite data
 /data/
 
-# packaged team distribution zip
+# packaged launcher zip (scripts/make-launcher.sh)
 /dist/
+
+# in case the launcher is ever double-clicked from inside a repo checkout instead of next to one
+/time-tracker/
 
 # Andy's personal migration data (real Jira baseline + worklog IDs) — local only, never committed
 /scripts/seed.ts

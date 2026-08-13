@@ -102,7 +102,11 @@ The existing prototype (preserved at `reference/time-tracking-manager.html`) is 
 
 ## 5.3 Distribution model
 
-Packaged as a zip, not hosted. `scripts/setup.mjs` is both the guided first-run wizard and the everyday launcher: it collects the teammate's own Jira email + API token, verifies them live against Jira before writing anything, writes their own `.env.local`, starts the app, and auto-configures default settings on first run. Re-verifies the saved login on every subsequent launch so an expired token prompts for a new one automatically. Double-click launchers (`Start Time Tracker.command` / `.bat`) handle Node.js detection for non-technical users before handing off to the wizard. `scripts/make-distribution.sh` stages a clean zip — no `node_modules`, `.git`, local data, or Andy's own seed/migration files — for handoff.
+Self-updating from a public GitHub repo (`github.com/arathianevasion/time-tracker`), not hosted. The double-click launchers (`Start Time Tracker.command` / `.bat`) are the only thing ever handed to a teammate, and only once: they check for Git (guiding install if missing), `git clone` the repo into a `time-tracker/` folder next to themselves on first run, then hand off to `scripts/setup.mjs`, which is both the guided first-run wizard and the everyday launcher from then on.
+
+On every launch, `setup.mjs` first checks `origin/main` for new commits and fast-forward pulls (`--ff-only`, so it no-ops rather than clobbers on any unexpected local divergence) before doing anything else, re-running `npm install` only if `package.json`/`package-lock.json` changed. It then collects the teammate's own Jira email + API token (first run only), verifies them live against Jira before writing anything, writes their own `.env.local`, starts the app, and auto-configures default settings. Re-verifies the saved login on every launch so an expired token prompts for a new one automatically.
+
+`scripts/make-launcher.sh` zips the two launcher files (preserving the Unix executable bit a plain HTTP download would strip) — a one-time packaging step per teammate, not per release, since ordinary code changes ship through the auto-update path above and never require re-sharing anything.
 
 Every install is completely independent: its own SQLite file, its own `.env.local`/Jira identity, its own baseline. Nothing is shared or synced between installs.
 
@@ -184,6 +188,7 @@ Full route contracts (request/response shapes) are finalized in the technical de
 - The token can be updated from Settings, but is never readable through the UI or any API response — write-only by design. Updating it rewrites `.env.local` and the running process's environment together, so the change takes effect immediately without a restart.
 - SQLite data file is gitignored.
 - Nothing leaves the local machine except calls to Jira itself; no analytics, no third-party services.
+- The GitHub repo itself is public (source code and app logic only) so the launcher can clone/pull without per-teammate GitHub accounts or access management. Verified before flipping visibility: no credentials, tokens, or personal data ever entered git history (`.env*`, `/data/`, and Andy's real seed/migration files were gitignored from before their first commit).
 
 # 10. Non-Functional Requirements
 
