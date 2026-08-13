@@ -49,3 +49,4 @@ next-env.d.ts
 # Andy's personal migration data (real Jira baseline + worklog IDs) — local only, never committed
 /scripts/seed.ts
 /src/lib/db/seed.ts
+/reference/
