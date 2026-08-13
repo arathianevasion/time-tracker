@@ -60,15 +60,22 @@ export interface DesiredEntry {
  * Preserves jira_worklog_id on rows that already exist, so the next sync updates in place rather than
  * duplicating. Rows no longer desired are flipped to 'deleting' so sync removes them from Jira first.
  */
+function entryKey(issueKey: string, entryDate: string): string {
+  return `${issueKey}|${entryDate}`;
+}
+
 export function reconcileWeek(weekStart: string, desired: DesiredEntry[]): void {
   const db = getDb();
   const tx = db.transaction(() => {
+    // Keyed by issueKey+date (matching the table's UNIQUE constraint) — keying by date alone
+    // collapses every issue sharing a workday onto one map slot and corrupts other issues' rows.
+    // Includes 'deleting' rows too: excluding them meant a removed-then-re-added entry tried to
+    // INSERT a fresh row while the old 'deleting' row still occupied that unique slot, crashing
+    // with a UNIQUE constraint violation.
     const existing = new Map(
-      listEntriesForWeek(weekStart)
-        .filter((e) => e.syncStatus !== "deleting")
-        .map((e) => [e.entryDate, e] as const),
+      listEntriesForWeek(weekStart).map((e) => [entryKey(e.issueKey, e.entryDate), e] as const),
     );
-    const desiredDates = new Set(desired.map((d) => d.entryDate));
+    const desiredKeys = new Set(desired.map((d) => entryKey(d.issueKey, d.entryDate)));
 
     const insert = db.prepare(
       `INSERT INTO time_entries (week_start, week_row_ids, issue_key, issue_summary, entry_date, minutes, sync_status)
@@ -82,10 +89,12 @@ export function reconcileWeek(weekStart: string, desired: DesiredEntry[]): void 
     );
 
     for (const d of desired) {
-      const prior = existing.get(d.entryDate);
+      const prior = existing.get(entryKey(d.issueKey, d.entryDate));
       if (!prior) {
         insert.run(weekStart, JSON.stringify(d.weekRowIds), d.issueKey, d.issueSummary, d.entryDate, d.minutes);
-      } else if (prior.minutes !== d.minutes || prior.issueSummary !== d.issueSummary) {
+      } else if (prior.minutes !== d.minutes || prior.issueSummary !== d.issueSummary || prior.syncStatus === "deleting") {
+        // The syncStatus === "deleting" case revives a row that was about to be removed but is
+        // wanted again — reusing its id (and jira_worklog_id) so the next sync updates it in place.
         update.run(JSON.stringify(d.weekRowIds), d.issueSummary, d.minutes, prior.id);
       }
     }
@@ -95,8 +104,9 @@ export function reconcileWeek(weekStart: string, desired: DesiredEntry[]): void 
       "UPDATE time_entries SET sync_status = 'deleting', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
     );
     const deleteLocal = db.prepare("DELETE FROM time_entries WHERE id = ?");
-    for (const [date, entry] of existing) {
-      if (desiredDates.has(date)) continue;
+    for (const [key, entry] of existing) {
+      if (desiredKeys.has(key)) continue;
+      if (entry.syncStatus === "deleting") continue; // already correctly marked, don't re-touch
       if (entry.jiraWorklogId) markDeleting.run(entry.id);
       else deleteLocal.run(entry.id); // never synced — safe to drop immediately
     }
