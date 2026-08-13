@@ -32,9 +32,13 @@ export class JiraApiError extends Error {
 const MAX_RATE_LIMIT_RETRIES = 5;
 
 /** Low-level fetch against the Jira REST API. Retries 429s honoring Retry-After. */
-export async function jiraFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const config = getJiraConfig();
-  const url = `${config.baseUrl}${path}`;
+export async function jiraFetch(
+  path: string,
+  init: RequestInit = {},
+  configOverride?: JiraConfig,
+): Promise<Response> {
+  const config = configOverride ?? getJiraConfig();
+  const url = `${config.baseUrl.replace(/\/$/, "")}${path}`;
   const headers = {
     Authorization: authHeader(config),
     Accept: "application/json",
@@ -54,8 +58,8 @@ export async function jiraFetch(path: string, init: RequestInit = {}): Promise<R
 }
 
 /** Fetch + JSON parse, throwing JiraApiError on non-2xx. */
-export async function jiraJson<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await jiraFetch(path, init);
+export async function jiraJson<T>(path: string, init: RequestInit = {}, configOverride?: JiraConfig): Promise<T> {
+  const res = await jiraFetch(path, init, configOverride);
   if (!res.ok) {
     const body = await res.text();
     throw new JiraApiError(res.status, body, `Jira ${init.method ?? "GET"} ${path} failed: ${res.status} ${body}`);

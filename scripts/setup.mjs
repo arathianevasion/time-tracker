@@ -4,7 +4,7 @@
 // `npm install` itself — before node_modules exists.
 
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import readline from "node:readline";
 import { fileURLToPath } from "node:url";
@@ -194,6 +194,7 @@ async function collectCredentials() {
 
 function writeEnvFile(email, token) {
   writeFileSync(ENV_PATH, `JIRA_BASE_URL=${JIRA_BASE_URL}\nJIRA_EMAIL=${email}\nJIRA_API_TOKEN=${token}\n`, "utf8");
+  chmodSync(ENV_PATH, 0o600);
 }
 
 function startDevServer() {

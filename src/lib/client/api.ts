@@ -27,6 +27,13 @@ export const api = {
   verifyJira: () =>
     json<{ ok: boolean; accountId?: string; displayName?: string; error?: string }>("/api/jira/verify"),
 
+  getJiraCredentials: () => json<{ baseUrl: string; email: string }>("/api/jira/credentials"),
+  updateJiraCredentials: (patch: { baseUrl: string; email: string; apiToken?: string }) =>
+    json<{ ok: boolean; accountId?: string; displayName?: string; error?: string }>("/api/jira/credentials", {
+      method: "PUT",
+      body: JSON.stringify(patch),
+    }),
+
   searchIssues: (q: string) =>
     json<{ issues: IssueSuggestion[] }>(`/api/jira/issues/search?q=${encodeURIComponent(q)}`),
 

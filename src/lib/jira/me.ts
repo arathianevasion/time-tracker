@@ -1,4 +1,4 @@
-import { jiraJson } from "./client";
+import { jiraJson, type JiraConfig } from "./client";
 
 export interface JiraMyself {
   accountId: string;
@@ -8,8 +8,8 @@ export interface JiraMyself {
 
 let cachedAccountId: string | null = null;
 
-export async function getMyself(): Promise<JiraMyself> {
-  return jiraJson<JiraMyself>("/rest/api/3/myself");
+export async function getMyself(configOverride?: JiraConfig): Promise<JiraMyself> {
+  return jiraJson<JiraMyself>("/rest/api/3/myself", {}, configOverride);
 }
 
 /** Cached for the life of the process — call once, reuse everywhere "my worklogs" filtering is needed. */

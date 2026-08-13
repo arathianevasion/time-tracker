@@ -1,7 +1,25 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
 export const JIRA_BASE_URL = "https://integritymarketing.atlassian.net";
 
-export function jiraIssueUrl(issueKey: string): string {
-  return `${JIRA_BASE_URL}/browse/${issueKey}`;
+export function jiraIssueUrl(issueKey: string, baseUrl = JIRA_BASE_URL): string {
+  return `${baseUrl}/browse/${issueKey}`;
+}
+
+// Module-level cache so every ViewInJiraLink instance on a page (one per row) shares a single
+// fetch instead of each firing its own request against /api/jira/credentials.
+let cachedBaseUrl: string | null = null;
+let baseUrlRequest: Promise<string> | null = null;
+
+function loadBaseUrl(): Promise<string> {
+  if (cachedBaseUrl) return Promise.resolve(cachedBaseUrl);
+  baseUrlRequest ??= fetch("/api/jira/credentials")
+    .then((r) => r.json())
+    .then((d) => (cachedBaseUrl = d.baseUrl || JIRA_BASE_URL))
+    .catch(() => JIRA_BASE_URL);
+  return baseUrlRequest;
 }
 
 export function IssueTypeBadge({ issueType, iconUrl }: { issueType: string | null; iconUrl?: string | null }) {
@@ -46,9 +64,15 @@ export function ExpenseCategoryBadge({ expenseCategory }: { expenseCategory: str
 }
 
 export function ViewInJiraLink({ issueKey }: { issueKey: string }) {
+  const [baseUrl, setBaseUrl] = useState(cachedBaseUrl ?? JIRA_BASE_URL);
+
+  useEffect(() => {
+    loadBaseUrl().then(setBaseUrl);
+  }, []);
+
   return (
     <a
-      href={jiraIssueUrl(issueKey)}
+      href={jiraIssueUrl(issueKey, baseUrl)}
       target="_blank"
       rel="noopener noreferrer"
       className="text-xs whitespace-nowrap text-blue-600 hover:underline"

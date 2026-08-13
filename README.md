@@ -9,7 +9,7 @@ Local, single-user app that logs weekly time against Jira issues on `integrityma
    - `JIRA_BASE_URL` — `https://integritymarketing.atlassian.net`
    - `JIRA_EMAIL` — your Atlassian account email
    - `JIRA_API_TOKEN` — generate at https://id.atlassian.com/manage-profile/security/api-tokens (tokens expire after 1 year)
-3. `npm run verify-auth` — confirms the token works before you rely on anything else. Restart `npm run dev` after changing `.env.local` (Next only reads env files at process start).
+3. `npm run verify-auth` — confirms the token works before you rely on anything else. If you hand-edit `.env.local` directly, restart `npm run dev` afterward (Next only reads env files at process start) — but you generally shouldn't need to: once the app is running, Settings → Jira Connection lets you update the base URL, email, or token in place, and it takes effect immediately (no restart).
 4. `npm run seed` — one-time, idempotent: loads the baseline and the already-logged Aug 3–7 2026 week from the prototype's data so this app doesn't re-create those worklogs. Safe to run again; it no-ops once the baseline is populated.
 5. `npm run dev` — open http://localhost:3000
 
@@ -33,3 +33,4 @@ Local, single-user app that logs weekly time against Jira issues on `integrityma
 
 - Jira Cloud's REST API doesn't support browser CORS, so all Jira calls go through server-side Next.js route handlers — the API token never reaches the browser.
 - Issue search is scoped to the project keys configured in Settings (default: `PM`).
+- Jira base URL, email, and API token are all editable from Settings → Jira Connection. The token field is write-only — it's never prefilled or returned by any API response, only replaceable. A save validates the new credentials live against Jira before committing; a bad value leaves the previous working credentials untouched. `.env.local` is locked to owner-only permissions (`600`) every time it's written.
