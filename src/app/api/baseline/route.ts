@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { BaselineValidationError, listBaseline, replaceBaseline } from "@/lib/db/baseline";
+import { BaselineValidationError, listBaseline, replaceBaseline, type ReplaceBaselineInput } from "@/lib/db/baseline";
 
 export async function GET() {
   return NextResponse.json({ items: listBaseline() });
@@ -7,7 +7,7 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   const body = await request.json();
-  const items = body.items as { issueKey: string; issueSummary: string; pct: number }[];
+  const items = body.items as ReplaceBaselineInput[];
 
   try {
     const saved = replaceBaseline(items);

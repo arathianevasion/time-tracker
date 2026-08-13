@@ -9,6 +9,7 @@
     "lint": "eslint",
     "verify-auth": "tsx scripts/verify-auth.ts",
     "seed": "tsx scripts/seed.ts",
+    "backfill-issue-metadata": "tsx scripts/backfill-issue-metadata.ts",
     "test": "vitest run"
   },
   "dependencies": {

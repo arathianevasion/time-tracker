@@ -6,6 +6,7 @@ import { fmtHours, weekLabel } from "@/lib/client/format";
 import { weekStatusFromRecord } from "@/lib/client/status";
 import type { AllocateWeekResult } from "@/lib/time/allocate";
 import { addDays, holidayFor, parseYmd, ymd } from "@/lib/time/week";
+import { ExpenseCategoryBadge, IssueTypeBadge, ViewInJiraLink } from "./IssueMetaBadges";
 import { IssuePicker } from "./IssuePicker";
 import { StatusBadge } from "./StatusBadge";
 
@@ -77,9 +78,21 @@ export function WeeklyGrid({
     await reload(true);
   }
 
-  async function addIssue(issue: { key: string; summary: string }) {
+  async function addIssue(issue: {
+    key: string;
+    summary: string;
+    issueType: string | null;
+    expenseCategory: string | null;
+  }) {
+    const meta = { issueType: issue.issueType, expenseCategory: issue.expenseCategory };
     if (addingKind === "baseline") {
-      await api.addRow(weekStart, { issueKey: issue.key, issueSummary: issue.summary, kind: "baseline", pct: 0 });
+      await api.addRow(weekStart, {
+        issueKey: issue.key,
+        issueSummary: issue.summary,
+        kind: "baseline",
+        pct: 0,
+        ...meta,
+      });
     } else {
       await api.addRow(weekStart, {
         issueKey: issue.key,
@@ -87,6 +100,7 @@ export function WeeklyGrid({
         kind: "one_off",
         flatHours: 1,
         oneOffDate: week!.workdays[0],
+        ...meta,
       });
     }
     await reload(true);
@@ -192,10 +206,17 @@ export function WeeklyGrid({
         <tbody>
           {percentRows.map((row) => (
             <tr key={row.id} className="border-t border-gray-100">
-              <td className="py-1.5">
-                {row.issueKey} — {row.issueSummary}
+              <td className="py-1.5 align-top">
+                <div>
+                  {row.issueKey} — {row.issueSummary}
+                </div>
+                <div className="mt-1 flex items-center gap-2">
+                  <IssueTypeBadge issueType={row.issueType} />
+                  <ExpenseCategoryBadge expenseCategory={row.expenseCategory} />
+                  <ViewInJiraLink issueKey={row.issueKey} />
+                </div>
               </td>
-              <td className="py-1.5 text-right">
+              <td className="py-1.5 text-right align-top">
                 <input
                   type="number"
                   min={0}
@@ -206,11 +227,11 @@ export function WeeklyGrid({
                   onBlur={(e) => updatePct(row.id, parseFloat(e.target.value) || 0)}
                 />
               </td>
-              <td className="py-1.5 text-right text-gray-600">{fmtHours(minutesForIssue(row.issueKey))}h</td>
-              <td className="py-1.5 text-right text-gray-500">
+              <td className="py-1.5 text-right align-top text-gray-600">{fmtHours(minutesForIssue(row.issueKey))}h</td>
+              <td className="py-1.5 text-right align-top text-gray-500">
                 {liveMinutes ? `${fmtHours(liveMinutes[row.issueKey] ?? 0)}h` : "–"}
               </td>
-              <td className="py-1.5 text-right">
+              <td className="py-1.5 text-right align-top">
                 <button type="button" className="text-gray-400 hover:text-red-600" onClick={() => removeRow(row.id)}>
                   ×
                 </button>
@@ -238,10 +259,17 @@ export function WeeklyGrid({
             <tbody>
               {oneOffRows.map((row) => (
                 <tr key={row.id} className="border-t border-gray-100">
-                  <td className="py-1.5">
-                    {row.issueKey} — {row.issueSummary}
+                  <td className="py-1.5 align-top">
+                    <div>
+                      {row.issueKey} — {row.issueSummary}
+                    </div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <IssueTypeBadge issueType={row.issueType} />
+                      <ExpenseCategoryBadge expenseCategory={row.expenseCategory} />
+                      <ViewInJiraLink issueKey={row.issueKey} />
+                    </div>
                   </td>
-                  <td className="py-1.5 text-right">
+                  <td className="py-1.5 text-right align-top">
                     <input
                       type="number"
                       min={0}
@@ -252,7 +280,7 @@ export function WeeklyGrid({
                     />
                     h
                   </td>
-                  <td className="py-1.5 text-right">
+                  <td className="py-1.5 text-right align-top">
                     <select
                       defaultValue={row.oneOffDate ?? week.workdays[0]}
                       className="rounded border border-gray-300 px-2 py-1 text-sm"
@@ -265,7 +293,7 @@ export function WeeklyGrid({
                       ))}
                     </select>
                   </td>
-                  <td className="py-1.5 text-right">
+                  <td className="py-1.5 text-right align-top">
                     <button type="button" className="text-gray-400 hover:text-red-600" onClick={() => removeRow(row.id)}>
                       ×
                     </button>

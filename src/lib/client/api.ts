@@ -1,4 +1,6 @@
-import type { BaselineItem, Settings, TimeEntry, WeekRecord } from "@/lib/db/types";
+import type { ReplaceBaselineInput } from "@/lib/db/baseline";
+import type { BaselineItem, Settings, TimeEntry, WeekRecord, WeekRow } from "@/lib/db/types";
+import type { IssueSuggestion } from "@/lib/jira/issues";
 import type { AllocateWeekResult } from "@/lib/time/allocate";
 import type { SyncOutcome } from "@/lib/time/sync";
 import type { WeekStatus } from "@/lib/time/status";
@@ -26,14 +28,14 @@ export const api = {
     json<{ ok: boolean; accountId?: string; displayName?: string; error?: string }>("/api/jira/verify"),
 
   searchIssues: (q: string) =>
-    json<{ issues: { key: string; summary: string }[] }>(`/api/jira/issues/search?q=${encodeURIComponent(q)}`),
+    json<{ issues: IssueSuggestion[] }>(`/api/jira/issues/search?q=${encodeURIComponent(q)}`),
 
   getSettings: () => json<Settings>("/api/settings"),
   updateSettings: (patch: Partial<Settings>) =>
     json<Settings>("/api/settings", { method: "PUT", body: JSON.stringify(patch) }),
 
   getBaseline: () => json<{ items: BaselineItem[] }>("/api/baseline"),
-  saveBaseline: (items: { issueKey: string; issueSummary: string; pct: number }[]) =>
+  saveBaseline: (items: ReplaceBaselineInput[]) =>
     json<{ items: BaselineItem[] }>("/api/baseline", { method: "PUT", body: JSON.stringify({ items }) }),
 
   getWeek: (weekStart: string) => json<WeekWithTotals>(`/api/weeks/${weekStart}`),
@@ -51,8 +53,10 @@ export const api = {
       pct?: number;
       flatHours?: number;
       oneOffDate?: string;
+      issueType?: string | null;
+      expenseCategory?: string | null;
     },
-  ) => json(`/api/weeks/${weekStart}/rows`, { method: "POST", body: JSON.stringify(input) }),
+  ) => json<WeekRow>(`/api/weeks/${weekStart}/rows`, { method: "POST", body: JSON.stringify(input) }),
   updateRow: (weekStart: string, rowId: number, patch: { pct?: number; flatHours?: number; oneOffDate?: string }) =>
     json(`/api/weeks/${weekStart}/rows/${rowId}`, { method: "PATCH", body: JSON.stringify(patch) }),
   removeRow: (weekStart: string, rowId: number) =>

@@ -10,6 +10,8 @@ export interface BaselineItem {
   issueSummary: string;
   pct: number;
   sortOrder: number;
+  issueType: string | null;
+  expenseCategory: string | null;
 }
 
 export type WeekRowKind = "baseline" | "one_off";
@@ -24,6 +26,8 @@ export interface WeekRow {
   flatHours: number | null;
   oneOffDate: string | null;
   sortOrder: number;
+  issueType: string | null;
+  expenseCategory: string | null;
 }
 
 export interface WeekRecord {

@@ -18,6 +18,8 @@ interface WeekRowRow {
   flat_hours: number | null;
   one_off_date: string | null;
   sort_order: number;
+  issue_type: string | null;
+  expense_category: string | null;
 }
 
 function rowFromDb(row: WeekRowRow): WeekRow {
@@ -31,6 +33,8 @@ function rowFromDb(row: WeekRowRow): WeekRow {
     flatHours: row.flat_hours,
     oneOffDate: row.one_off_date,
     sortOrder: row.sort_order,
+    issueType: row.issue_type,
+    expenseCategory: row.expense_category,
   };
 }
 
@@ -75,9 +79,14 @@ export function ensureWeek(weekStart: string, defaultWorkdays: string[]): WeekRe
 function seedBaselineRows(weekStart: string) {
   const db = getDb();
   const insert = db.prepare(
-    "INSERT INTO week_rows (week_start, issue_key, issue_summary, kind, pct, sort_order) VALUES (?, ?, ?, 'baseline', ?, ?)",
+    `INSERT INTO week_rows (week_start, issue_key, issue_summary, kind, pct, sort_order, issue_type, expense_category)
+     VALUES (?, ?, ?, 'baseline', ?, ?, ?, ?)`,
   );
-  listBaseline().forEach((item, i) => insert.run(weekStart, item.issueKey, item.issueSummary, item.pct, i));
+  // Copies type/category straight from the baseline rather than re-querying Jira — the baseline
+  // is the source of truth for this issue's metadata as of when it was last added/refreshed there.
+  listBaseline().forEach((item, i) =>
+    insert.run(weekStart, item.issueKey, item.issueSummary, item.pct, i, item.issueType, item.expenseCategory),
+  );
 }
 
 /** Replaces this week's baseline-kind rows with a fresh copy of the current baseline. One-off rows are untouched. */
@@ -112,6 +121,8 @@ export interface AddRowInput {
   pct?: number;
   flatHours?: number;
   oneOffDate?: string;
+  issueType?: string | null;
+  expenseCategory?: string | null;
 }
 
 export function addRow(weekStart: string, input: AddRowInput): WeekRow {
@@ -123,8 +134,9 @@ export function addRow(weekStart: string, input: AddRowInput): WeekRow {
   ).m;
   const result = db
     .prepare(
-      `INSERT INTO week_rows (week_start, issue_key, issue_summary, kind, pct, flat_hours, one_off_date, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO week_rows
+         (week_start, issue_key, issue_summary, kind, pct, flat_hours, one_off_date, sort_order, issue_type, expense_category)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       weekStart,
@@ -135,6 +147,8 @@ export function addRow(weekStart: string, input: AddRowInput): WeekRow {
       input.flatHours ?? null,
       input.oneOffDate ?? null,
       maxOrder + 1,
+      input.issueType ?? null,
+      input.expenseCategory ?? null,
     );
   return rowFromDb(
     db.prepare("SELECT * FROM week_rows WHERE id = ?").get(result.lastInsertRowid) as WeekRowRow,

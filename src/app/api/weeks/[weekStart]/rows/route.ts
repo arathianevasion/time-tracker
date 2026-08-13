@@ -28,6 +28,8 @@ export async function POST(request: Request, { params }: RouteParams) {
     pct: body.pct,
     flatHours: body.flatHours,
     oneOffDate: body.oneOffDate,
+    issueType: body.issueType,
+    expenseCategory: body.expenseCategory,
   });
   return NextResponse.json(row, { status: 201 });
 }

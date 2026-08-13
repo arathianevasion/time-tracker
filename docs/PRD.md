@@ -104,7 +104,7 @@ The existing prototype (preserved at `reference/time-tracking-manager.html`) is 
 
 ## 6.1 Baseline management
 
-CRUD list of `{issueKey, summary (cached from Jira), pct}`. Percentages must sum to exactly 100% to save. Issue picker is scoped to the configured default project keys (§6.7).
+CRUD list of `{issueKey, summary (cached from Jira), pct}`. Percentages must sum to exactly 100% to save. Issue picker is scoped to the configured default project keys (§6.7). The picker also shows each candidate issue's type (Epic/Story/Task, with Jira's own icon) and Andy's org-specific "Expense Category" custom field (OpEx/CapEx/Time Off/One Time Cost, or "None" if unset) so he can tell what he's adding — both are fetched live per search (issue-picker endpoint doesn't return them, so a follow-up batched lookup enriches the results) and persisted on the baseline/week row once added, rather than re-fetched on every view. Every baseline and weekly-grid row also has a "View in Jira ↗" link that opens the real issue in a new tab.
 
 ## 6.2 Weekly allocation
 
@@ -146,8 +146,10 @@ List of past weeks with status (unlogged / partial / logged / in-progress), tota
 # 7. Data Model (SQLite)
 
 - `settings` (single row): `default_project_keys` (JSON array), `weekly_hours_target`, `account_id` (cached from `/myself`).
-- `baseline_items`: `id, issue_key, issue_summary, pct, sort_order`.
-- `week_rows`: `id, week_start, issue_key, issue_summary, kind ('baseline'|'one_off'), pct (nullable, one-offs have none), flat_hours (nullable, only one-offs), one_off_date (nullable, only one-offs — a single date within the week), workdays (JSON array for that week)`.
+- `baseline_items`: `id, issue_key, issue_summary, pct, sort_order, issue_type (nullable), expense_category (nullable)`.
+- `week_rows`: `id, week_start, issue_key, issue_summary, kind ('baseline'|'one_off'), pct (nullable, one-offs have none), flat_hours (nullable, only one-offs), one_off_date (nullable, only one-offs — a single date within the week), workdays (JSON array for that week), issue_type (nullable), expense_category (nullable)`.
+
+`issue_type`/`expense_category` were added via a small idempotent migration (`ALTER TABLE ... ADD COLUMN` guarded by `PRAGMA table_info`, run on every startup) rather than a full migration framework — this is the app's first schema change since launch, and establishes the pattern for the next one. A new week's baseline-kind rows copy these straight from `baseline_items` rather than re-querying Jira (`seedBaselineRows`). Existing rows created before this feature are backfilled once via `npm run backfill-issue-metadata`.
 - `time_entries` (computed/materialized per issue+day): `id, week_row_id, entry_date, minutes (0.25h-rounded), jira_worklog_id (nullable), sync_status ('pending'|'synced'|'error'|'deleting'), sync_error, updated_at`.
 
 # 8. API Design

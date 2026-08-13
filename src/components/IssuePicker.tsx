@@ -2,11 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/client/api";
+import type { IssueSuggestion } from "@/lib/jira/issues";
+import { ExpenseCategoryBadge, IssueTypeBadge } from "./IssueMetaBadges";
 
-interface IssueOption {
-  key: string;
-  summary: string;
-}
+type IssueOption = IssueSuggestion;
 
 export function IssuePicker({
   onSelect,
@@ -73,8 +72,14 @@ export function IssuePicker({
                 setOpen(false);
               }}
             >
-              <span className="font-medium">{opt.key}</span>{" "}
-              <span className="text-gray-500">— {opt.summary}</span>
+              <div>
+                <span className="font-medium">{opt.key}</span>{" "}
+                <span className="text-gray-500">— {opt.summary}</span>
+              </div>
+              <div className="mt-1 flex items-center gap-2">
+                <IssueTypeBadge issueType={opt.issueType} iconUrl={opt.issueTypeIconUrl} />
+                <ExpenseCategoryBadge expenseCategory={opt.expenseCategory} />
+              </div>
             </button>
           ))}
         </div>

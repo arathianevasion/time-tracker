@@ -3,12 +3,15 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client/api";
 import type { BaselineItem } from "@/lib/db/types";
+import { ExpenseCategoryBadge, IssueTypeBadge, ViewInJiraLink } from "./IssueMetaBadges";
 import { IssuePicker } from "./IssuePicker";
 
 interface DraftRow {
   issueKey: string;
   issueSummary: string;
   pct: number;
+  issueType: string | null;
+  expenseCategory: string | null;
 }
 
 export function BaselineCard() {
@@ -24,7 +27,15 @@ export function BaselineCard() {
   }, []);
 
   function startEdit() {
-    setDraft(items.map((i) => ({ issueKey: i.issueKey, issueSummary: i.issueSummary, pct: i.pct })));
+    setDraft(
+      items.map((i) => ({
+        issueKey: i.issueKey,
+        issueSummary: i.issueSummary,
+        pct: i.pct,
+        issueType: i.issueType,
+        expenseCategory: i.expenseCategory,
+      })),
+    );
     setEditing(true);
   }
 
@@ -59,9 +70,16 @@ export function BaselineCard() {
             {draft.map((row, i) => (
               <tr key={row.issueKey} className="border-t border-gray-100">
                 <td className="py-1.5">
-                  {row.issueKey} — {row.issueSummary}
+                  <div>
+                    {row.issueKey} — {row.issueSummary}
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <IssueTypeBadge issueType={row.issueType} />
+                    <ExpenseCategoryBadge expenseCategory={row.expenseCategory} />
+                    <ViewInJiraLink issueKey={row.issueKey} />
+                  </div>
                 </td>
-                <td className="py-1.5 text-right">
+                <td className="py-1.5 text-right align-top">
                   <input
                     type="number"
                     min={0}
@@ -75,7 +93,7 @@ export function BaselineCard() {
                     }}
                   />
                 </td>
-                <td className="py-1.5 text-right">
+                <td className="py-1.5 text-right align-top">
                   <button
                     type="button"
                     className="text-gray-400 hover:text-red-600"
@@ -92,7 +110,18 @@ export function BaselineCard() {
         <div className="mt-3">
           <IssuePicker
             excludeKeys={draft.map((r) => r.issueKey)}
-            onSelect={(issue) => setDraft((d) => [...d, { issueKey: issue.key, issueSummary: issue.summary, pct: 0 }])}
+            onSelect={(issue) =>
+              setDraft((d) => [
+                ...d,
+                {
+                  issueKey: issue.key,
+                  issueSummary: issue.summary,
+                  pct: 0,
+                  issueType: issue.issueType,
+                  expenseCategory: issue.expenseCategory,
+                },
+              ])
+            }
             placeholder="Add an issue to the baseline…"
           />
         </div>
@@ -133,9 +162,16 @@ export function BaselineCard() {
           {items.map((row) => (
             <tr key={row.id} className="border-t border-gray-100">
               <td className="py-1.5">
-                {row.issueKey} — {row.issueSummary}
+                <div>
+                  {row.issueKey} — {row.issueSummary}
+                </div>
+                <div className="mt-1 flex items-center gap-2">
+                  <IssueTypeBadge issueType={row.issueType} />
+                  <ExpenseCategoryBadge expenseCategory={row.expenseCategory} />
+                  <ViewInJiraLink issueKey={row.issueKey} />
+                </div>
               </td>
-              <td className="py-1.5 text-right">{row.pct}%</td>
+              <td className="py-1.5 text-right align-top">{row.pct}%</td>
             </tr>
           ))}
         </tbody>
