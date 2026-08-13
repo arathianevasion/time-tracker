@@ -18,7 +18,7 @@ This replaces `time-tracking-manager.html` (see §4), a working prototype that r
 
 ## 1.1 Decisions already locked
 
-- **Scope:** single user (just Andy). No multi-user, no OAuth, no org-admin approval needed.
+- **Scope:** single user per install. No shared server, no OAuth, no org-admin approval needed — the app is packaged for teammates to each run their own fully independent local copy (§5.3).
 - **Runtime:** local only — `npm run dev`, no hosting or deployment.
 - **Direction:** time entries sync to Jira as real worklogs (one-way write; Jira is the system of record for logged time itself).
 - **Auth:** personal Jira API token (Basic Auth).
@@ -44,7 +44,7 @@ Make weekly time logging near-zero-effort while keeping Jira worklogs complete a
 
 ## 2.3 Non-goals for v1
 
-- Multi-user support or any hosting/deployment.
+- A shared, hosted, or multi-tenant backend — each teammate's install is fully independent instead (§5.3); no cross-instance data, accounts, or visibility.
 - Tempo Timesheets or any other Jira time-tracking add-on integration.
 - Categories/tags on entries independent of the Jira issue itself.
 - Non-US holiday calendars.
@@ -52,7 +52,7 @@ Make weekly time logging near-zero-effort while keeping Jira worklogs complete a
 
 # 3. Users & Roles
 
-Just Andy — owner, sole user, sole author of every worklog this app creates.
+Andy, plus any teammate who installs their own copy (§5.3). Each install has exactly one user, who is the sole author of every worklog that install creates — there's no cross-install visibility or shared ownership.
 
 # 4. Prototype Reference — What `time-tracking-manager.html` Establishes
 
@@ -100,6 +100,12 @@ The existing prototype (preserved at `reference/time-tracking-manager.html`) is 
 - **Verify before building.** Atlassian enforces a 1-year API token expiry — a live auth check against `integritymarketing.atlassian.net` is the first implementation step, before any other app code.
 - **Independent repo.** This project is its own git repository, not nested inside any other project's history.
 
+## 5.3 Distribution model
+
+Packaged as a zip, not hosted. `scripts/setup.mjs` is both the guided first-run wizard and the everyday launcher: it collects the teammate's own Jira email + API token, verifies them live against Jira before writing anything, writes their own `.env.local`, starts the app, and auto-configures default settings on first run. Re-verifies the saved login on every subsequent launch so an expired token prompts for a new one automatically. Double-click launchers (`Start Time Tracker.command` / `.bat`) handle Node.js detection for non-technical users before handing off to the wizard. `scripts/make-distribution.sh` stages a clean zip — no `node_modules`, `.git`, local data, or Andy's own seed/migration files — for handoff.
+
+Every install is completely independent: its own SQLite file, its own `.env.local`/Jira identity, its own baseline. Nothing is shared or synced between installs.
+
 # 6. Feature Requirements
 
 ## 6.1 Baseline management
@@ -114,6 +120,8 @@ Opening a week seeds it from the current baseline (or from that week's own previ
 - Add or remove an issue for that week only.
 - Add a **one-off** line item: an issue + a flat hour amount (not a percent) + a specific date within the week — for exceptions like a meeting, PTO, or ad hoc task that doesn't belong in the recurring baseline and shouldn't be smeared across every workday.
 - Toggle which days count as workdays for that week (defaults per §6.7).
+
+A week that hasn't finished yet — the current, in-progress week, or any week reached via repeated forward navigation — shows a warning and has its **Log to Jira** button disabled; time can only be logged for a completed week.
 
 ## 6.3 Allocation & rounding engine (new — not in the prototype)
 
@@ -135,13 +143,14 @@ Per baseline/week issue, sum worklogs authored by Andy's `accountId` within the 
 
 ## 6.6 History
 
-List of past weeks with status (unlogged / partial / logged / in-progress), total hours, entry count, and a jump-to-week action.
+List of past weeks with status (unlogged / partial / logged / in-progress / future), total hours, entry count, and a jump-to-week action. Scoped to weeks with at least one entry actually synced to Jira — merely viewing or editing a week (which creates a local `weeks` row) isn't enough for it to appear.
 
 ## 6.7 Settings
 
 - Default project keys (list) — scopes issue search everywhere in the app.
 - Work week definition — which weekdays count by default (Mon–Fri minus computed US federal holidays; per-week override always available via the day chips).
 - Weekly hours target (default 40 → 8h/day).
+- Jira connection (base URL, email, API token) — base URL and email are shown and editable; the API token is **write-only**, never returned by any API response or prefilled in the form. Saving validates the candidate credentials live against `/myself` before committing; a failed check leaves the previous working credentials untouched.
 
 # 7. Data Model (SQLite)
 
@@ -165,12 +174,14 @@ List of past weeks with status (unlogged / partial / logged / in-progress), tota
 | POST | `/api/sync` | Run the allocation engine for a week and push create/update/delete worklogs to Jira |
 | POST | `/api/sync/drift` | Live cross-check: paginated worklog read per issue for the viewed week. Checks any entry with a `jira_worklog_id`, regardless of local `sync_status` — a worklog id existing is the real signal Jira has something for it. |
 | GET/PUT | `/api/settings` | Default project keys, work week definition, weekly hours target |
+| GET/PUT | `/api/jira/credentials` | Read (base URL, email only) / update the Jira connection. `PUT` validates live before persisting; the API token is never returned by `GET` |
 
 Full route contracts (request/response shapes) are finalized in the technical design doc that follows this PRD.
 
 # 9. Security & Privacy
 
-- Jira API token lives only in `.env.local` (gitignored); never reaches a client bundle — enforced by Next.js's server/client boundary.
+- Jira API token lives only in `.env.local` (gitignored, chmod `600` on every write); never reaches a client bundle — enforced by Next.js's server/client boundary.
+- The token can be updated from Settings, but is never readable through the UI or any API response — write-only by design. Updating it rewrites `.env.local` and the running process's environment together, so the change takes effect immediately without a restart.
 - SQLite data file is gitignored.
 - Nothing leaves the local machine except calls to Jira itself; no analytics, no third-party services.
 
@@ -195,7 +206,7 @@ Everything in §6.
 
 ## 11.3 v2
 
-Revisit hosting only if a second user is ever needed.
+Revisit hosting only if teammates ever need to share or roll up data across their independent installs — each runs fully standalone today (§5.3).
 
 ## 11.4 Migration note
 
