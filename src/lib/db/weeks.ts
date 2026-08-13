@@ -178,9 +178,21 @@ export function removeRow(rowId: number): void {
   getDb().prepare("DELETE FROM week_rows WHERE id = ?").run(rowId);
 }
 
+/**
+ * Weeks with at least one real worklog actually pushed to Jira — not just any week that has a
+ * `weeks` row, which gets created merely from viewing/navigating to a week (including future
+ * ones) via ensureWeek(). This is history, so it should only ever show real activity.
+ */
 export function listWeekStarts(limit = 16): string[] {
   const rows = getDb()
-    .prepare("SELECT week_start FROM weeks ORDER BY week_start DESC LIMIT ?")
+    .prepare(
+      `SELECT DISTINCT w.week_start
+       FROM weeks w
+       JOIN time_entries te ON te.week_start = w.week_start
+       WHERE te.jira_worklog_id IS NOT NULL
+       ORDER BY w.week_start DESC
+       LIMIT ?`,
+    )
     .all(limit) as { week_start: string }[];
   return rows.map((r) => r.week_start);
 }

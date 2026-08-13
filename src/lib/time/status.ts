@@ -2,10 +2,12 @@ import { getWeekTotals } from "../db/entries";
 import { getWeek } from "../db/weeks";
 import { currentWeekStart } from "./week";
 
-export type WeekStatus = "unlogged" | "partial" | "logged" | "inprogress";
+export type WeekStatus = "unlogged" | "partial" | "logged" | "inprogress" | "future";
 
 export function weekStatus(weekStart: string): WeekStatus {
-  if (weekStart === currentWeekStart()) return "inprogress";
+  const current = currentWeekStart();
+  if (weekStart > current) return "future";
+  if (weekStart === current) return "inprogress";
 
   const week = getWeek(weekStart);
   const totals = getWeekTotals(weekStart);

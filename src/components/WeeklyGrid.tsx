@@ -24,7 +24,7 @@ export function WeeklyGrid({
   const [liveMinutes, setLiveMinutes] = useState<Record<string, number> | null>(null);
   const [busy, setBusy] = useState(false);
   const [banner, setBanner] = useState<Banner>(null);
-  const [addingKind, setAddingKind] = useState<"baseline" | "one_off">("baseline");
+  const [addingKind, setAddingKind] = useState<"baseline" | "one_off">("one_off");
 
   // persist=false (preview, read-only) for merely viewing a week; persist=true (materialize) only
   // after an actual edit or sync, since persisting can flip an unrelated already-synced entry's
@@ -145,6 +145,7 @@ export function WeeklyGrid({
 
   const pctTotal = percentRows.reduce((s, r) => s + (r.pct ?? 0), 0);
   const pctOk = percentRows.length === 0 || Math.abs(pctTotal - 100) < 0.01;
+  const weekNotYetLoggable = status === "inprogress" || status === "future";
 
   return (
     <div className="rounded-xl border border-gray-200 p-5">
@@ -165,6 +166,9 @@ export function WeeklyGrid({
           This week hasn&apos;t finished yet. Time is normally logged for a completed week — use ← Earlier for last
           week.
         </div>
+      )}
+      {status === "future" && (
+        <div className="warn">This is a future week — time can only be logged once the week is complete.</div>
       )}
       {banner && <div className={banner.type === "ok" ? "ok-msg" : "err-msg"}>{banner.text}</div>}
 
@@ -329,7 +333,7 @@ export function WeeklyGrid({
       </div>
 
       <div className="mt-4 flex items-center gap-2">
-        <button type="button" className="btn-primary" disabled={busy || !pctOk} onClick={doSync}>
+        <button type="button" className="btn-primary" disabled={busy || !pctOk || weekNotYetLoggable} onClick={doSync}>
           {busy
             ? "Writing to Jira…"
             : status === "logged" || status === "partial"
