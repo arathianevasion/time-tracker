@@ -58,6 +58,10 @@ export const api = {
   removeRow: (weekStart: string, rowId: number) =>
     json(`/api/weeks/${weekStart}/rows/${rowId}`, { method: "DELETE" }),
 
+  // Read-only recompute for display — call on view/navigation. Never changes sync_status.
+  preview: (weekStart: string) =>
+    json<AllocateWeekResult>(`/api/weeks/${weekStart}/preview`, { method: "POST" }),
+  // Persists the recompute into time_entries — call only after an edit or right before syncing.
   materialize: (weekStart: string) =>
     json<AllocateWeekResult & { savedEntries: TimeEntry[] }>(`/api/weeks/${weekStart}/materialize`, {
       method: "POST",

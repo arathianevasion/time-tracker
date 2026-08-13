@@ -158,8 +158,10 @@ List of past weeks with status (unlogged / partial / logged / in-progress), tota
 | GET | `/api/jira/issues/search?q=` | Issue typeahead, scoped to configured project keys |
 | GET/PUT | `/api/baseline` | Read/replace the baseline (percent list, must sum to 100) |
 | GET/POST/PATCH/DELETE | `/api/weeks/:weekStart/rows` | Manage a week's rows (baseline-seeded, edited, one-off) |
+| POST | `/api/weeks/:weekStart/preview` | Read-only recompute for display — used whenever a week is merely viewed/navigated to. Never writes to `time_entries` or touches `sync_status`. |
+| POST | `/api/weeks/:weekStart/materialize` | Recomputes **and persists** into `time_entries`, flipping affected rows' `sync_status` back to `pending`. Used only after an actual edit (row/workday change) or immediately before `/api/sync` — never on mere navigation, since persisting an unedited week can flip an already-synced entry to `pending` if the computed day-shape differs at all from what's stored, even when the row's weekly total is unchanged. |
 | POST | `/api/sync` | Run the allocation engine for a week and push create/update/delete worklogs to Jira |
-| POST | `/api/sync/drift` | Live cross-check: paginated worklog read per issue for the viewed week |
+| POST | `/api/sync/drift` | Live cross-check: paginated worklog read per issue for the viewed week. Checks any entry with a `jira_worklog_id`, regardless of local `sync_status` — a worklog id existing is the real signal Jira has something for it. |
 | GET/PUT | `/api/settings` | Default project keys, work week definition, weekly hours target |
 
 Full route contracts (request/response shapes) are finalized in the technical design doc that follows this PRD.

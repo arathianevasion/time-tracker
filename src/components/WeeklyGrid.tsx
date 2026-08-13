@@ -25,16 +25,23 @@ export function WeeklyGrid({
   const [banner, setBanner] = useState<Banner>(null);
   const [addingKind, setAddingKind] = useState<"baseline" | "one_off">("baseline");
 
-  const reload = useCallback(async () => {
-    const w = await api.getWeek(weekStart);
-    setWeek(w);
-    const m = await api.materialize(weekStart);
-    setAlloc(m);
-  }, [weekStart]);
+  // persist=false (preview, read-only) for merely viewing a week; persist=true (materialize) only
+  // after an actual edit or sync, since persisting can flip an unrelated already-synced entry's
+  // sync_status back to 'pending' if the computed day-shape differs at all from what's stored —
+  // even when nothing the user controls actually changed.
+  const reload = useCallback(
+    async (persist = false) => {
+      const w = await api.getWeek(weekStart);
+      setWeek(w);
+      const m = persist ? await api.materialize(weekStart) : await api.preview(weekStart);
+      setAlloc(m);
+    },
+    [weekStart],
+  );
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch-on-weekStart-change, not a render loop
-    reload();
+    reload(false);
   }, [reload]);
 
   if (!week || !alloc) return <div className="text-sm text-gray-400">Loading…</div>;
@@ -52,22 +59,22 @@ export function WeeklyGrid({
       ? week.workdays.filter((d) => d !== date)
       : [...week.workdays, date].sort();
     await api.setWorkdays(weekStart, next);
-    await reload();
+    await reload(true);
   }
 
   async function updatePct(rowId: number, pct: number) {
     await api.updateRow(weekStart, rowId, { pct });
-    await reload();
+    await reload(true);
   }
 
   async function updateOneOff(rowId: number, patch: { flatHours?: number; oneOffDate?: string }) {
     await api.updateRow(weekStart, rowId, patch);
-    await reload();
+    await reload(true);
   }
 
   async function removeRow(rowId: number) {
     await api.removeRow(weekStart, rowId);
-    await reload();
+    await reload(true);
   }
 
   async function addIssue(issue: { key: string; summary: string }) {
@@ -82,12 +89,12 @@ export function WeeklyGrid({
         oneOffDate: week!.workdays[0],
       });
     }
-    await reload();
+    await reload(true);
   }
 
   async function resetToBaseline() {
     await api.resetToBaseline(weekStart);
-    await reload();
+    await reload(true);
   }
 
   async function doSync() {

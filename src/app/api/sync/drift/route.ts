@@ -15,8 +15,14 @@ export async function POST(request: Request) {
   const start = parseYmd(weekStart);
   const end = addDays(start, 7);
 
-  const synced = listEntriesForWeek(weekStart).filter((e) => e.syncStatus === "synced" && e.jiraWorklogId);
-  const issueKeys = [...new Set(synced.map((e) => e.issueKey))];
+  // A worklog id existing is the real signal Jira has something for this entry — not the local
+  // sync_status, which can drift to 'pending' for benign local reasons (e.g. a recompute) while
+  // Jira itself is untouched. Only 'deleting' entries are excluded, since those are intentionally
+  // being removed and shouldn't be reported as live.
+  const trackedInJira = listEntriesForWeek(weekStart).filter(
+    (e) => e.jiraWorklogId && e.syncStatus !== "deleting",
+  );
+  const issueKeys = [...new Set(trackedInJira.map((e) => e.issueKey))];
 
   const perIssueLiveMinutes: Record<string, number> = {};
   const flaggedMissing: { issueKey: string; date: string; jiraWorklogId: string }[] = [];
@@ -31,7 +37,7 @@ export async function POST(request: Request) {
     perIssueLiveMinutes[issueKey] = Math.round(inWeek.reduce((s, w) => s + w.timeSpentSeconds, 0) / 60);
 
     const liveIds = new Set(mine.map((w) => w.id));
-    for (const entry of synced.filter((e) => e.issueKey === issueKey)) {
+    for (const entry of trackedInJira.filter((e) => e.issueKey === issueKey)) {
       if (entry.jiraWorklogId && !liveIds.has(entry.jiraWorklogId)) {
         markError(entry.id, "Worklog no longer found in Jira — re-sync to recreate, or remove this entry.");
         flaggedMissing.push({ issueKey, date: entry.entryDate, jiraWorklogId: entry.jiraWorklogId });
