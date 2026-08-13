@@ -131,6 +131,72 @@ describe("allocateWeek", () => {
     expect(roundToQuarterHour(1.3)).toBe(1.25);
     expect(roundToQuarterHour(1.4)).toBe(1.5);
   });
+
+  it("caps a one-off day's percent-based hours at the remaining daily capacity (Andy's example)", () => {
+    const result = allocateWeek({
+      workdays: WORKDAYS_5,
+      weeklyHoursTarget: 40, // dailyRate = 8h
+      percentRows: [{ rowId: 1, issueKey: "PM-1", issueSummary: "A", pct: 100 }],
+      oneOffRows: [{ rowId: 2, issueKey: "PM-9", issueSummary: "One-time event", flatHours: 7.5, date: "2026-08-03" }],
+    });
+
+    const mondayPercent = result.entries.filter((e) => e.entryDate === "2026-08-03" && e.issueKey === "PM-1");
+    // 8h daily rate - 7.5h one-off = 0.5h left for percent-based work on Monday.
+    expect(sumMinutes(mondayPercent)).toBe(0.5 * 60);
+
+    // The other 4 days pick up the rest so the week's percent total (32.5h) still lands exactly.
+    expect(totalsByIssue(result.entries)["PM-1"]).toBe(32.5 * 60);
+    expect(sumMinutes(result.entries)).toBe(result.weekTargetMinutes);
+    expect(result.weekTargetMinutes).toBe(40 * 60);
+  });
+
+  it("distributes a constrained day's shortfall proportionally across multiple percent rows", () => {
+    const result = allocateWeek({
+      workdays: WORKDAYS_5,
+      weeklyHoursTarget: 40,
+      percentRows: [
+        { rowId: 1, issueKey: "PM-1", issueSummary: "A", pct: 75 },
+        { rowId: 2, issueKey: "PM-2", issueSummary: "B", pct: 25 },
+      ],
+      oneOffRows: [{ rowId: 3, issueKey: "PM-9", issueSummary: "One-time event", flatHours: 7.5, date: "2026-08-03" }],
+    });
+
+    // 0.5h left on Monday, split 75/25 -> 0.25h each (rounds evenly at this granularity).
+    const mondayA = sumMinutes(result.entries.filter((e) => e.entryDate === "2026-08-03" && e.issueKey === "PM-1"));
+    const mondayB = sumMinutes(result.entries.filter((e) => e.entryDate === "2026-08-03" && e.issueKey === "PM-2"));
+    expect(mondayA + mondayB).toBe(0.5 * 60);
+
+    // 75/25 of 32.5h (130 quarters) is 97.5/32.5 quarters — not whole, so the same largest-
+    // remainder method used everywhere else rounds it to 98/32 (tie broken by row order).
+    const byIssue = totalsByIssue(result.entries);
+    expect(byIssue["PM-1"]).toBe(24.5 * 60);
+    expect(byIssue["PM-2"]).toBe(8 * 60);
+    expect(sumMinutes(result.entries)).toBe(result.weekTargetMinutes);
+  });
+
+  it("floors a day's capacity at zero when one-offs alone exceed the daily rate, without borrowing from other days", () => {
+    const result = allocateWeek({
+      workdays: WORKDAYS_5,
+      weeklyHoursTarget: 40, // dailyRate = 8h
+      percentRows: [{ rowId: 1, issueKey: "PM-1", issueSummary: "A", pct: 100 }],
+      oneOffRows: [{ rowId: 2, issueKey: "PM-9", issueSummary: "Long event", flatHours: 9, date: "2026-08-03" }],
+    });
+
+    // No percent-based hours land on the over-committed day.
+    const mondayPercent = result.entries.filter((e) => e.entryDate === "2026-08-03" && e.issueKey === "PM-1");
+    expect(mondayPercent).toHaveLength(0);
+
+    // The week's percent-based total shrinks by the full 9h rather than spilling onto other days:
+    // remainingPool = (0 + 8+8+8+8) = 32h, not 40 - 9 = 31h.
+    expect(totalsByIssue(result.entries)["PM-1"]).toBe(32 * 60);
+    expect(result.remainingPoolMinutes).toBe(32 * 60);
+
+    // Other days still cap at the normal 8h daily rate — no overflow to compensate.
+    for (const date of ["2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07"]) {
+      const dayTotal = sumMinutes(result.entries.filter((e) => e.entryDate === date));
+      expect(dayTotal).toBeLessThanOrEqual(8 * 60);
+    }
+  });
 });
 
 function sumMinutes(entries: { minutes: number }[]): number {

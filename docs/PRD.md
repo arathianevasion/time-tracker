@@ -119,12 +119,11 @@ Opening a week seeds it from the current baseline (or from that week's own previ
 
 1. Week target total = `workdays_selected × dailyRate` (`dailyRate = weeklyHoursTarget / 5`, default 8h).
 2. One-off rows: each has its own flat hour amount, rounded to the nearest 0.25h, and its own specific date (must be one of the week's selected workdays) — no splitting, one worklog per one-off.
-3. Remaining pool = week target total − sum(rounded one-off hours).
-4. Percent-based rows' weekly hours = `pct% × remaining pool`. Percent rows must sum to exactly 100% — validated against the remaining pool (post-one-offs), same rule the baseline itself uses.
-5. Round every percent row's weekly hours to the nearest 0.25h.
-6. Reconcile row-level rounding drift among the percent rows: if they don't sum to exactly the remaining pool, adjust the largest row(s) by ±0.25h until they do.
-7. Split each percent row's reconciled weekly hours evenly across that row's selected workdays, in 0.25h steps, reconciling any per-day drift the same way (extra 0.25h to the earliest days first) so the days sum exactly to the row's weekly total.
-8. Each `(issue, date)` pair with hours > 0 — whether a percent row's per-day split or a one-off's single date — becomes a worklog create-or-update, keyed off the local ledger.
+3. **Each workday's own remaining capacity** for percent-based work = `dailyRate − (sum of one-off hours pinned to that date)`, floored at 0. A day with no one-offs has the full daily rate available; a day whose one-offs alone exceed the daily rate floors at 0 and does not borrow capacity from other days (the week's percent-based total simply shrinks by that day's overage).
+4. Remaining pool = **sum of every workday's capacity** (equivalent to `week target − one-off total` unless a single day's one-offs exceed its own daily rate, per the floor above).
+5. Percent-based rows' weekly hours = `pct% × remaining pool`, rounded to the nearest 0.25h with row-level drift reconciled (largest row(s) absorb ±0.25h) so they sum to exactly the remaining pool. Percent rows must sum to exactly 100% of the remaining pool — validated the same way the baseline itself is.
+6. **Day-by-day fill** (replaces a flat even split across all workdays): processing workdays in order, each day's capacity is apportioned across the percent rows by each row's still-unallocated weekly budget, using the same largest-remainder method as step 5. A day with reduced capacity (because of a one-off) receives proportionally less percent-based work that day; the shortfall is automatically picked up by later days, since a row's full weekly total is only guaranteed to land by the last workday. This means a given day may have no hours logged against some percent rows at all — expected behavior, not a gap.
+7. Each `(issue, date)` pair with hours > 0 — whether a percent row's day-fill share or a one-off's single date — becomes a worklog create-or-update, keyed off the local ledger.
 
 ## 6.4 Sync to Jira
 

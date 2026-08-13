@@ -25,7 +25,7 @@ Local, single-user app that logs weekly time against Jira issues on `integrityma
 
 - **Baseline**: a recurring split of your time across Jira issues, by percent, summing to 100.
 - **Each week** starts from the baseline; you can add/remove/edit percentages for that week only, or add **one-off** entries (a flat hour amount on a specific date) that carve hours out of the week before percentages are applied to what's left.
-- **Allocation**: percentages are applied to `workdays × 8h` (minus one-offs), rounded to the nearest quarter hour, then split evenly across the week's working days. See `src/lib/time/allocate.ts`.
+- **Allocation**: each workday's capacity is `8h` minus whatever one-offs land on it that day; percentages are applied to what's left and filled in day by day, so a day with a big one-off gets less percent-based work and the rest of the week picks up the difference — the weekly total still always reconciles exactly. Rounds to the nearest quarter hour. See `src/lib/time/allocate.ts`.
 - **Sync**: "Log this week to Jira" writes one worklog per issue per day. Re-logging updates existing worklogs in place (tracked by a local worklog-ID ledger keyed on issue + date) instead of duplicating.
 - **Data lives locally only**: `data/time-tracker.db` (SQLite, gitignored). Nothing leaves your machine except calls to Jira itself.
 

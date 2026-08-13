@@ -84,18 +84,6 @@ function apportion(weights: number[], totalQuarters: number): number[] {
   return result;
 }
 
-/** Splits a row's total quarters evenly across its workdays, earliest days absorbing any remainder. */
-function splitAcrossDays(totalQuarters: number, workdays: string[]): number[] {
-  if (workdays.length === 0) return [];
-  const base = Math.floor(totalQuarters / workdays.length);
-  let remainder = totalQuarters - base * workdays.length;
-  return workdays.map(() => {
-    const extra = remainder > 0 ? 1 : 0;
-    if (remainder > 0) remainder -= 1;
-    return base + extra;
-  });
-}
-
 export function allocateWeek(input: AllocateWeekInput): AllocateWeekResult {
   const dailyRateHours = roundToQuarterHour(input.weeklyHoursTarget / 5);
   const dailyRateQuarters = hoursToQuarters(dailyRateHours);
@@ -104,7 +92,18 @@ export function allocateWeek(input: AllocateWeekInput): AllocateWeekResult {
   const oneOffQuarters = input.oneOffRows.map((r) => hoursToQuarters(r.flatHours));
   const oneOffQuartersTotal = oneOffQuarters.reduce((s, q) => s + q, 0);
 
-  const remainingPoolQuarters = Math.max(0, weekTargetQuarters - oneOffQuartersTotal);
+  // Each workday's own remaining capacity for percent-based work, after that day's one-offs.
+  // Floored at 0 rather than going negative — a day over-committed by one-offs alone just shrinks
+  // the week's percent-based total; it doesn't borrow capacity from other days.
+  const oneOffQuartersByDate = new Map<string, number>();
+  input.oneOffRows.forEach((row, i) => {
+    oneOffQuartersByDate.set(row.date, (oneOffQuartersByDate.get(row.date) ?? 0) + oneOffQuarters[i]);
+  });
+  const dayCapacityQuarters = input.workdays.map((date) =>
+    Math.max(0, dailyRateQuarters - (oneOffQuartersByDate.get(date) ?? 0)),
+  );
+
+  const remainingPoolQuarters = dayCapacityQuarters.reduce((s, q) => s + q, 0);
   const percentSum = input.percentRows.reduce((s, r) => s + r.pct, 0);
 
   const percentQuarters = apportion(
@@ -114,15 +113,22 @@ export function allocateWeek(input: AllocateWeekInput): AllocateWeekResult {
 
   const entries: AllocatedEntry[] = [];
 
-  input.percentRows.forEach((row, i) => {
-    const dayQuarters = splitAcrossDays(percentQuarters[i], input.workdays);
-    input.workdays.forEach((date, dayIndex) => {
-      if (dayQuarters[dayIndex] <= 0) return;
+  // Day-by-day fill: each day's capacity is apportioned across percent rows by their still-
+  // unallocated weekly budget, so a reduced-capacity day (because of a one-off) naturally pushes
+  // its shortfall onto later days instead of overflowing past the daily rate. Because
+  // sum(day capacities) === sum(row weekly totals) by construction, every row's total is
+  // guaranteed to land exactly by the last day, regardless of how many days are constrained.
+  const remainingRowQuarters = [...percentQuarters];
+  input.workdays.forEach((date, dayIndex) => {
+    const dayShares = apportion(remainingRowQuarters, dayCapacityQuarters[dayIndex]);
+    input.percentRows.forEach((row, i) => {
+      remainingRowQuarters[i] -= dayShares[i];
+      if (dayShares[i] <= 0) return;
       entries.push({
         issueKey: row.issueKey,
         issueSummary: row.issueSummary,
         entryDate: date,
-        minutes: quartersToMinutes(dayQuarters[dayIndex]),
+        minutes: quartersToMinutes(dayShares[i]),
         weekRowIds: [row.rowId],
       });
     });
