@@ -184,6 +184,9 @@ async function assembleTarget(target, appDir) {
 
   cpSync(appDir, path.join(bundleRoot, "app"), { recursive: true });
   cpSync(path.join(ROOT, "launcher.mjs"), path.join(bundleRoot, "launcher.mjs"));
+  // Ships inside the zip itself — a teammate who only ever gets the zip (not a repo checkout)
+  // still needs these instructions, especially the Gatekeeper/SmartScreen first-launch steps.
+  cpSync(path.join(ROOT, "GETTING_STARTED.md"), path.join(bundleRoot, "GETTING_STARTED.md"));
   writeFileSync(path.join(bundleRoot, "VERSION"), appVersion() + "\n");
 
   // Prune every prebuild except this platform's own — each first-run bundle only ever runs on
