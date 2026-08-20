@@ -17,7 +17,12 @@ Unzip it somewhere you'll remember — your **Desktop** is a good choice. (On Wi
 
 Inside the unzipped `Time Tracker` folder, double-click the start file for your computer.
 
-> **On a Mac**, the first time you do this, macOS may show a warning like *"can't be opened because it is from an unidentified developer."* This is normal for a file that wasn't downloaded from the App Store. To get past it (only needed once): **right-click** `Start Time Tracker.command`, choose **Open**, then click **Open** again in the dialog that appears.
+> **On a Mac**, the first time you do this, macOS will warn you about an app that wasn't downloaded from the App Store. This is normal — you just need to approve it once:
+>
+> - **If you see "Apple could not verify that '...' is free of malware..."** (current macOS): double-click the file once to trigger the warning, then go to **System Settings → Privacy & Security**, scroll down to the **Security** section, and click **Open Anyway** next to the message about the blocked file. Confirm with your password or Touch ID (and one more "Open Anyway"/"Open" click if it asks again).
+> - **If you see "can't be opened because it is from an unidentified developer"** (older macOS): **right-click** `Start Time Tracker.command`, choose **Open**, then click **Open** again in the dialog that appears.
+>
+> Either way, this is only needed the very first time — after that, double-clicking just starts the app.
 
 > **On Windows**, you may see a blue "Windows protected your PC" screen (SmartScreen). Click **More info**, then **Run anyway**. This is normal for an app that isn't distributed through the Microsoft Store.
 
