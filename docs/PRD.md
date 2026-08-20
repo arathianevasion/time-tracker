@@ -102,13 +102,13 @@ The existing prototype (preserved at `reference/time-tracking-manager.html`) is 
 
 ## 5.3 Distribution model
 
-Self-updating from a public GitHub repo (`github.com/arathianevasion/time-tracker`), not hosted. The double-click launchers (`Start Time Tracker.command` / `.bat`) are the only thing ever handed to a teammate, and only once: they check for Git (guiding install if missing), `git clone` the repo into a `time-tracker/` folder next to themselves on first run, then hand off to `scripts/setup.mjs`, which is both the guided first-run wizard and the everyday launcher from then on.
+Zero-dependency portable bundle, self-updating from a public GitHub repo's Releases (`github.com/arathianevasion/time-tracker`), not hosted. A teammate downloads and unzips one platform-specific bundle (`TimeTracker-mac-arm64.zip` or `TimeTracker-windows.zip`, built by `scripts/package.mjs`) and double-clicks the launcher inside it (`Start Time Tracker.command` / `.bat`) — nothing needs to be installed first: the bundle carries its own pinned Node.js runtime (`runtime/`) and a pre-built, standalone Next.js app (`app/`, `next build` with `output: "standalone"`), so there is no Git, no system Node, no `npm install`, and no admin rights required.
 
-On every launch, `setup.mjs` first checks `origin/main` for new commits and fast-forward pulls (`--ff-only`, so it no-ops rather than clobbers on any unexpected local divergence) before doing anything else, re-running `npm install` only if `package.json`/`package-lock.json` changed. It then collects the teammate's own Jira email + API token (first run only), verifies them live against Jira before writing anything, writes their own `.env.local`, starts the app, and auto-configures default settings. Re-verifies the saved login on every launch so an expired token prompts for a new one automatically.
+The launcher shims are ~10 lines each; all real logic lives in `launcher.mjs`, which they run via the bundled Node. On every launch it checks the release channel for a newer version (a small `VERSION.txt` fetched from `.../releases/latest/download/`, not the GitHub REST API, which would risk rate-limiting a team sharing one corporate egress IP), and if newer, downloads `app.zip` and swaps it in for `app/` — staged first, so an interrupted download can't corrupt a working install. `runtime/` and the launcher shims themselves are never auto-updated (a Node/launcher bump means a fresh bundle download). It then picks a free port starting at 3000, starts the app bound to `127.0.0.1` only (never the LAN — avoids both firewall prompts and any admin-required exception), waits for it to respond, and opens the user's default browser.
 
-`scripts/make-launcher.sh` zips the two launcher files (preserving the Unix executable bit a plain HTTP download would strip) — a one-time packaging step per teammate, not per release, since ordinary code changes ship through the auto-update path above and never require re-sharing anything.
+Each teammate's Jira email and API token are entered in the app itself (Settings → Jira Connection, validated live against Jira before being saved) — there is no terminal credential prompt. A brand-new install with nothing configured yet lands on a short in-app "Connect to Jira" panel instead of an error.
 
-Every install is completely independent: its own SQLite file, its own `.env.local`/Jira identity, its own baseline. Nothing is shared or synced between installs.
+Every install is completely independent: its own SQLite database, its own credentials, its own baseline. Nothing is shared or synced between installs. Both live outside the app bundle entirely — in `~/Library/Application Support/WeeklyTimeTracker` (macOS) or `%LOCALAPPDATA%\WeeklyTimeTracker` (Windows) — specifically so that swapping `app/` on update never touches a teammate's data.
 
 # 6. Feature Requirements
 
@@ -184,11 +184,12 @@ Full route contracts (request/response shapes) are finalized in the technical de
 
 # 9. Security & Privacy
 
-- Jira API token lives only in `.env.local` (gitignored, chmod `600` on every write); never reaches a client bundle — enforced by Next.js's server/client boundary.
+- Jira API token lives only in `.env.local`, in the per-user data directory outside the app bundle (§5.3; gitignored in dev, chmod `600` on every write); never reaches a client bundle — enforced by Next.js's server/client boundary.
 - The token can be updated from Settings, but is never readable through the UI or any API response — write-only by design. Updating it rewrites `.env.local` and the running process's environment together, so the change takes effect immediately without a restart.
-- SQLite data file is gitignored.
-- Nothing leaves the local machine except calls to Jira itself; no analytics, no third-party services.
-- The GitHub repo itself is public (source code and app logic only) so the launcher can clone/pull without per-teammate GitHub accounts or access management. Verified before flipping visibility: no credentials, tokens, or personal data ever entered git history (`.env*`, `/data/`, and Andy's real seed/migration files were gitignored from before their first commit).
+- SQLite data file lives in the same per-user data directory; gitignored in dev.
+- The app server binds to `127.0.0.1` only — never reachable from the LAN.
+- Nothing leaves the local machine except calls to Jira itself and the release-channel version/update checks (plain file downloads, no telemetry); no analytics, no third-party services.
+- The GitHub repo itself is public (source code and app logic only) so the launcher can check for and download updates without per-teammate GitHub accounts or access management. Verified before flipping visibility: no credentials, tokens, or personal data ever entered git history (`.env*`, `/data/`, and Andy's real seed/migration files were gitignored from before their first commit).
 
 # 10. Non-Functional Requirements
 
@@ -208,6 +209,7 @@ Everything in §6.
 - Promote a one-off row to a permanent baseline entry.
 - CSV/copyable weekly summary export.
 - Configurable (non-US) holiday calendar.
+- **Auto-submit overdue weeks** — a Settings toggle (default off). Once enabled, checked once per app launch (via `launcher.mjs`, right after the server starts — no daemon or OS scheduler exists or is planned, so this is the only trigger point consistent with how the app already runs). Once past Friday noon of the *current* week — not the stale week's own Friday, which for a genuinely prior week has always already passed and would make the check fire immediately with no grace period to submit manually first — sweeps the last 2 weeks and auto-submits (materialize + sync, the exact same path as clicking "Log this week to Jira") any week that isn't already fully logged. Never touches anything more than 2 weeks old. Reuses `ensureWeek`/`weekStatus`/`materializeWeek`/`syncWeek` as-is; partial/failed syncs behave like manual ones and retry on the next launch within the window. Would need: `settings.auto_submit_enabled` + `weeks.auto_submitted_at` columns, a `pastFridayNoonOfCurrentWeek()` helper in `src/lib/time/week.ts`, a new `POST /api/auto-submit` route, a Settings checkbox, and a small "Auto-submitted" indicator in History/the week view so an automatic write to Jira is never silent.
 
 ## 11.3 v2
 

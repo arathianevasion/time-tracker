@@ -43,11 +43,11 @@ next-env.d.ts
 # local sqlite data
 /data/
 
-# packaged launcher zip (scripts/make-launcher.sh)
+# packaged distributable bundles (scripts/package.mjs)
 /dist/
 
-# in case the launcher is ever double-clicked from inside a repo checkout instead of next to one
-/time-tracker/
+# downloaded Node runtime archives, cached across packaging runs (scripts/package.mjs)
+/.cache/
 
 # Andy's personal migration data (real Jira baseline + worklog IDs) — local only, never committed
 /scripts/seed.ts

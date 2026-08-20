@@ -1,9 +1,14 @@
-import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { getUserDataDir } from "./paths";
 
-/** Loads .env.local for standalone scripts (Next.js loads it automatically on its own). */
+/**
+ * Loads .env.local for standalone scripts and for the packaged app (see src/instrumentation.ts)
+ * — Next's own automatic env-file loading only ever looks at process.cwd(), which in the
+ * packaged app is app/, not the relocated data directory .env.local actually lives in.
+ */
 export function loadLocalEnv(filename = ".env.local") {
-  const path = resolve(process.cwd(), filename);
+  const path = resolve(getUserDataDir(), filename);
   if (!existsSync(path)) return;
 
   for (const line of readFileSync(path, "utf8").split("\n")) {
@@ -28,7 +33,9 @@ export function loadLocalEnv(filename = ".env.local") {
  * other local accounts on the machine from reading it.
  */
 export function writeLocalEnv(updates: Record<string, string>, filename = ".env.local") {
-  const path = resolve(process.cwd(), filename);
+  const dataDir = getUserDataDir();
+  if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
+  const path = resolve(dataDir, filename);
   const remaining = new Map(Object.entries(updates));
   const lines = existsSync(path) ? readFileSync(path, "utf8").split("\n") : [];
 

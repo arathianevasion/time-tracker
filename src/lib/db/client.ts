@@ -1,10 +1,11 @@
 import Database from "better-sqlite3";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { getUserDataDir } from "../paths";
 import { runMigrations, SCHEMA_SQL } from "./schema";
 
 // TT_DB_PATH override exists so tests can point at ":memory:" or a temp file.
-const DB_PATH = process.env.TT_DB_PATH ?? resolve(process.cwd(), "data", "time-tracker.db");
+const DB_PATH = process.env.TT_DB_PATH ?? resolve(getUserDataDir(), "data", "time-tracker.db");
 
 // Survive Next.js dev-server hot reload without opening a second connection to the same file.
 const globalForDb = globalThis as unknown as { __ttDb?: Database.Database };

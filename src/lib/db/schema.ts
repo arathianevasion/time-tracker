@@ -1,7 +1,7 @@
 export const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS settings (
   id                    INTEGER PRIMARY KEY CHECK (id = 1),
-  default_project_keys  TEXT NOT NULL DEFAULT '[]',
+  default_project_keys  TEXT NOT NULL DEFAULT '["PM"]',
   weekly_hours_target   REAL NOT NULL DEFAULT 40,
   account_id            TEXT
 );

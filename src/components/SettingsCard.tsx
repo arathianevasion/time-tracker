@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/client/api";
 
-export function SettingsCard() {
+const DEFAULT_JIRA_BASE_URL = "https://integritymarketing.atlassian.net";
+const JIRA_TOKEN_URL = "https://id.atlassian.com/manage-profile/security/api-tokens";
+
+export function SettingsCard({ onConnected }: { onConnected?: (email: string) => void } = {}) {
   const [projectKeysText, setProjectKeysText] = useState("");
   const [weeklyHoursTarget, setWeeklyHoursTarget] = useState(40);
   const [saved, setSaved] = useState(false);
@@ -22,6 +25,16 @@ export function SettingsCard() {
     displayName?: string;
     error?: string;
   } | null>(null);
+  const [showTokenHelp, setShowTokenHelp] = useState(false);
+
+  useEffect(() => {
+    if (!showTokenHelp) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowTokenHelp(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showTokenHelp]);
 
   useEffect(() => {
     api.getSettings().then((s) => {
@@ -29,7 +42,7 @@ export function SettingsCard() {
       setWeeklyHoursTarget(s.weeklyHoursTarget);
     });
     api.getJiraCredentials().then((c) => {
-      setJiraBaseUrl(c.baseUrl);
+      setJiraBaseUrl(c.baseUrl || DEFAULT_JIRA_BASE_URL);
       setJiraEmail(c.email);
     });
   }, []);
@@ -66,6 +79,7 @@ export function SettingsCard() {
         apiToken: jiraApiToken || undefined,
       });
       setConnectionResult(result);
+      if (result.ok) onConnected?.(jiraEmail);
     } catch (err) {
       setConnectionResult({ ok: false, error: err instanceof Error ? err.message : "Unknown error" });
     } finally {
@@ -145,7 +159,16 @@ export function SettingsCard() {
             />
           </label>
           <label className="block text-sm sm:col-span-2">
-            <span className="text-xs text-gray-500">Jira API token</span>
+            <span className="flex items-center gap-2">
+              <span className="text-xs text-gray-500">Jira API token</span>
+              <button
+                type="button"
+                onClick={() => setShowTokenHelp(true)}
+                className="text-xs text-blue-600 underline underline-offset-2 hover:text-blue-800"
+              >
+                How do I get this?
+              </button>
+            </span>
             <input
               type="password"
               value={jiraApiToken}
@@ -169,6 +192,58 @@ export function SettingsCard() {
             <span className="text-xs text-red-700">{connectionResult.error}</span>
           )}
         </div>
+      </div>
+
+      {showTokenHelp && <TokenHelpModal onClose={() => setShowTokenHelp(false)} />}
+    </div>
+  );
+}
+
+function TokenHelpModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="token-help-title"
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-5 shadow-lg"
+      >
+        <div className="flex items-center gap-2.5">
+          <h3 id="token-help-title" className="text-base font-semibold">
+            Getting a Jira API token
+          </h3>
+          <div className="flex-1" />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="text-gray-400 hover:text-gray-700"
+          >
+            ✕
+          </button>
+        </div>
+        <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-gray-700">
+          <li>
+            Open{" "}
+            <a href={JIRA_TOKEN_URL} target="_blank" rel="noreferrer" className="text-blue-600 underline">
+              id.atlassian.com
+            </a>
+            .
+          </li>
+          <li>
+            Click <strong>Create API token</strong>, and give it any name (e.g. &quot;Time Tracker&quot;).
+          </li>
+          <li>Copy the token it gives you.</li>
+          <li>Paste it into the field here and click Save connection.</li>
+        </ol>
+        <p className="mt-3 text-xs text-gray-500">Tokens expire after about a year — come back here if this ever stops working.</p>
+        <button type="button" className="btn-secondary mt-4 w-full" onClick={onClose}>
+          Got it
+        </button>
       </div>
     </div>
   );
