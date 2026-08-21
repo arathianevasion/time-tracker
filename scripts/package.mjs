@@ -22,6 +22,7 @@ import {
   existsSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -74,6 +75,37 @@ function appVersion() {
   return JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
 }
 
+// Turbopack's output-file-tracing gives at least one server route its own independently-
+// resolved copy of better-sqlite3, in a content-hash-named folder under .next/ — a *relative*
+// symlink back to the real node_modules/better-sqlite3 at build time. fs.cpSync doesn't
+// preserve that relative target when copying the build around: it re-resolves the symlink to
+// an absolute path pointing at THIS checkout's own .next/standalone, so after assembleApp()
+// copies things into app/, the link silently keeps pointing at the original, never-patched,
+// single-prebuild build output instead of the copy patched two lines below. zip then
+// dereferences it at pack time and bakes in whichever one prebuild happened to be on the build
+// machine — every other platform's bundle gets a copy of better-sqlite3 that can't load.
+function findNestedBetterSqlite3Copies(nextDir) {
+  if (!existsSync(nextDir)) return [];
+  return readdirSync(nextDir, { recursive: true, withFileTypes: true })
+    .filter((entry) => entry.name.startsWith("better-sqlite3-") && (entry.isDirectory() || entry.isSymbolicLink()))
+    .map((entry) => path.join(entry.parentPath ?? entry.path, entry.name));
+}
+
+/** Swaps each nested copy found under nextDir for a real (non-symlink) copy of canonicalDir, so
+ * every later cpSync/prune/zip step treats it as an ordinary, self-contained folder. */
+function realizeNestedCopies(nextDir, canonicalDir) {
+  for (const nestedCopy of findNestedBetterSqlite3Copies(nextDir)) {
+    rmSync(nestedCopy, { recursive: true, force: true });
+    cpSync(canonicalDir, nestedCopy, { recursive: true });
+  }
+}
+
+function pruneToPrebuild(prebuildsDir, keep) {
+  for (const prebuild of BETTER_SQLITE3_PREBUILDS) {
+    if (prebuild !== keep) rmSync(path.join(prebuildsDir, prebuild), { force: true });
+  }
+}
+
 // --- 1. Build -------------------------------------------------------------------------------
 
 function buildNext() {
@@ -121,6 +153,10 @@ function assembleApp() {
     const src = path.join(ROOT, "node_modules", "better-sqlite3", "prebuilds", prebuild);
     if (existsSync(src)) cpSync(src, path.join(prebuildsDir, prebuild));
   }
+
+  // See findNestedBetterSqlite3Copies() — Turbopack gives some routes their own separately-
+  // resolved copy of better-sqlite3 that the loop above never touches.
+  realizeNestedCopies(path.join(appDir, ".next"), path.join(appDir, "node_modules", "better-sqlite3"));
 
   // No codesign step needed: verified `codesign -dvvv` on the darwin-arm64 prebuild shows it's
   // already ad-hoc, linker-signed out of the box, which satisfies Apple Silicon's mandatory-
@@ -193,11 +229,16 @@ async function assembleTarget(target, appDir) {
   // one platform, so shipping the other three saves ~6 MB and removes any ambiguity about which
   // one actually loads. (app.zip, the shared update payload, keeps all of them — see assembleApp.)
   const prebuildsDir = path.join(bundleRoot, "app", "node_modules", "better-sqlite3", "prebuilds");
-  for (const prebuild of BETTER_SQLITE3_PREBUILDS) {
-    if (prebuild !== target.prebuild) rmSync(path.join(prebuildsDir, prebuild), { force: true });
-  }
+  pruneToPrebuild(prebuildsDir, target.prebuild);
   if (!existsSync(path.join(prebuildsDir, target.prebuild))) {
     throw new Error(`Missing better-sqlite3 prebuild for ${target.name}: ${target.prebuild}`);
+  }
+
+  // Same prune, applied to Turbopack's separately-resolved copy(ies) — see realizeNestedCopies()
+  // in assembleApp(). Without this, each first-run bundle would carry all 4 prebuilds a second
+  // time at the nested path instead of just the one it actually needs.
+  for (const nestedCopy of findNestedBetterSqlite3Copies(path.join(bundleRoot, "app", ".next"))) {
+    pruneToPrebuild(path.join(nestedCopy, "prebuilds"), target.prebuild);
   }
 
   const launcherSrc = path.join(ROOT, target.launcherFile);
